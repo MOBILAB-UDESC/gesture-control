@@ -1,6 +1,6 @@
 import cv2  # Importa a biblioteca OpenCV para manipulação de vídeo e imagem
 import numpy as np  # Importa a biblioteca NumPy para operações matemáticas
-import pyrealsense2 as rs  # Importa a biblioteca RealSense para trabalhar com a câmera RealSense
+# import pyrealsense2 as rs  # Importa a biblioteca RealSense para trabalhar com a câmera RealSense
 
 # Carregando os classificadores Haarcascade para detecção de rosto e olhos
 detectorFace = cv2.CascadeClassifier('cascade/haarcascade_frontalface_default.xml')
@@ -10,26 +10,27 @@ detectorOlho = cv2.CascadeClassifier('cascade/haarcascade-eye.xml')
 reconhecedor = cv2.face.EigenFaceRecognizer_create()
 reconhecedor.read("classifier/classificadorEigen.yml")
 
-# Configuração da câmera RealSense
-pipeline = rs.pipeline()  # Inicializa o pipeline RealSense para captura de quadros
-config = rs.config()  # Cria um objeto de configuração para a câmera RealSense
-config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)  # Habilita o fluxo de cores com determinadas configurações
-profile = pipeline.start(config)  # Inicia o pipeline RealSense com as configurações especificadas
+# # Configuração da câmera RealSense
+# pipeline = rs.pipeline()  # Inicializa o pipeline RealSense para captura de quadros
+# config = rs.config()  # Cria um objeto de configuração para a câmera RealSense
+# config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)  # Habilita o fluxo de cores com determinadas configurações
+# profile = pipeline.start(config)  # Inicia o pipeline RealSense com as configurações especificadas
 
 # Tamanho da imagem para o reconhecimento
 height, width = 220, 220
-
 font = cv2.FONT_HERSHEY_COMPLEX_SMALL  # Define a fonte para o texto
+camera = cv2.VideoCapture(0)
 
 try:
     while True:
-        # Capturando os quadros da câmera RealSense
-        frames = pipeline.wait_for_frames()  # Espera pela chegada de novos quadros
-        color_frame = frames.get_color_frame()  # Obtém o quadro de cor atual
-        if not color_frame:
-            continue  # Se não houver quadro de cor, passa para o próximo ciclo do loop
+        # # Capturando os quadros da câmera RealSense
+        # frames = pipeline.wait_for_frames()  # Espera pela chegada de novos quadros
+        # color_frame = frames.get_color_frame()  # Obtém o quadro de cor atual
+        # if not color_frame:
+        #     continue  # Se não houver quadro de cor, passa para o próximo ciclo do loop
 
-        imagem = np.asanyarray(color_frame.get_data())  # Converte o quadro de cor para uma matriz NumPy
+        # imagem = np.asanyarray(color_frame.get_data())  # Converte o quadro de cor para uma matriz NumPy
+        conectado, imagem = camera.read()
         imageGray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)  # Converte a imagem colorida para escala de cinza
 
         # Deteccao da face baseado no haarcascade
@@ -72,5 +73,5 @@ try:
         if cv2.waitKey(1) == ord('q'): break  # Aguarda a tecla 'q' ser pressionada para encerrar o loop
 
 finally:
-    pipeline.stop()  # Encerra o pipeline RealSense
+    # pipeline.stop()  # Encerra o pipeline RealSense
     cv2.destroyAllWindows()  # Fecha todas as janelas abertas pela OpenCV
