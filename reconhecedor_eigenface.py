@@ -20,6 +20,7 @@ reconhecedor.read("classifier/classificadorEigen.yml")
 height, width = 220, 220
 font = cv2.FONT_HERSHEY_COMPLEX_SMALL  # Define a fonte para o texto
 camera = cv2.VideoCapture(0)
+camera.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc('M','J','P','G'))
 
 try:
     while True:
