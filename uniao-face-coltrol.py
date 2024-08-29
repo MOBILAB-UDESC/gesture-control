@@ -1,23 +1,16 @@
 import threading
 import socket
 import time
-import cv2 as cv
 import cv2
 import mediapipe as mp
 import face_recognition
 import pickle
 import numpy as np
-# import pyrealsense2 as rs
 
 # Load the known faces and embeddings
 print("[INFO] loading encodings...")
 data = pickle.loads(open("encodings/data.db", "rb").read())
 
-# Image size for recognition
-height, width = 220, 220
-font = cv2.FONT_HERSHEY_COMPLEX_SMALL  # Define the font for text
-
-print("[INFO] recognizing faces...")
 # host = ''
 # port = 9000
 
@@ -48,18 +41,27 @@ mp_hands = mp.solutions.hands
 
 last_sent = 0
 hands_detected = False
+hand_results= []
 admin_in_the_house = False
 read = False
 fps = 0
 people = []
 
+displacement_x_left = 0
+displacement_y_left = 0
+displacement_x_right = 0
+displacement_y_right = 0
+
+left_hand_center = [0, 0]
+right_hand_center = [0, 0]
+
+mutex = threading.Lock()
+
 
 def detect():
-    global left_hand_center, right_hand_center, center_face, hands_detected
-    global people, admin_in_the_house, frame, read, fps
+    global hand_results, hands_detected
+    global people, admin_in_the_house, frame, read
 
-    both_hands_detect = 0
-    fps = 0
     # Initialize face and hand detectors
     hands_detector = mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.5)
 
@@ -67,7 +69,9 @@ def detect():
         if not read:
             continue
 
-        image = frame # para garantir que a imagem não seja atualizada durante o processamento
+        with mutex:
+            image = frame # para garantir que a imagem não seja atualizada durante o processamento
+
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         boxes = face_recognition.face_locations(rgb, model="hog")
         encodings = face_recognition.face_encodings(rgb, boxes)
@@ -91,79 +95,38 @@ def detect():
             people.append([name, boxes[j]])
             j = j+1
 
-        #     # frame = cv.flip(np.asanyarray(color_frame.get_data()), 1)
-        #     rgb_frame = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        if admin_in_the_house:
+            
+            rgb_frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            # Detect hands
+            hand_results = hands_detector.process(rgb_frame)
 
-        #     # Detect faces
-        #     face_results = face_detector.process(rgb_frame)
-        #     frame_height, frame_width, _ = image.shape
-
-        #     # Detect hands
-        #     hand_results = hands_detector.process(rgb_frame)
-
-        #     if face_results.detections:
-        #         for face in face_results.detections:
-        #             face_rect = np.multiply(
-        #                 [
-        #                     face.location_data.relative_bounding_box.xmin,
-        #                     face.location_data.relative_bounding_box.ymin,
-        #                     face.location_data.relative_bounding_box.width,
-        #                     face.location_data.relative_bounding_box.height,
-        #                 ],
-        #                 [frame_width, frame_height, frame_width, frame_height]
-        #             ).astype(int)
-
-        #             key_points = np.array([(p.x, p.y) for p in face.location_data.relative_keypoints])
-        #             key_points_coords = np.multiply(key_points, [frame_width, frame_height]).astype(int)
-
-        #             # Calculate center of the face
-        #             center_face = (int(face_rect[0] + face_rect[2] / 2), int(face_rect[1] + face_rect[3] / 2))
-
-        #             # Draw key points on face
-        #             for x, y in key_points_coords:
-        #                 cv.circle(image, (x, y), 5, (255, 0, 255), -1)
-        #             cv.circle(image, (center_face[0], center_face[1]), 5, (255, 0, 0), -1)
-
-        #     if hand_results.multi_hand_landmarks and len(hand_results.multi_hand_landmarks) == 2:
-        #         hands_detected = True
-
-        #         for i, hand_landmarks in enumerate(hand_results.multi_hand_landmarks):
-        #             hand_points = []
-
-        #             for landmark in hand_landmarks.landmark:
-        #                 x = int(landmark.x * frame_width)
-        #                 y = int(landmark.y * frame_height)
-        #                 hand_points.append((x, y))
-        #                 cv.circle(image, (x, y), 5, (255, 0, 255), cv.FILLED)
-
-        #             # Calculate left hand center
-        #             if hand_results.multi_handedness[i].classification[0].label == "Left":
-        #                 left_hand_center = tuple(np.mean(hand_points, axis=0).astype(int))
-        #                 cv.circle(image, (left_hand_center[0], left_hand_center[1]), 5, (255, 0, 0), cv.FILLED)
-
-        #             # Calculate right hand center
-        #             if hand_results.multi_handedness[i].classification[0].label == "Right":
-        #                 right_hand_center = tuple(np.mean(hand_points, axis=0).astype(int))
-        #                 cv.circle(image, (right_hand_center[0], right_hand_center[1]), 5, (255, 0, 0), cv.FILLED)
-        #     else:
-        #         hands_detected = False
-
-        #     cv.putText(image, f"FPS: {fps:.2f}", (30, 30), cv.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 255), 2)
-        #     cv.imshow("frame", image)
-        #     key = cv.waitKey(1)
-
-        # cv.destroyAllWindows()
+            if hand_results.multi_hand_landmarks and len(hand_results.multi_hand_landmarks) == 2:
+                hands_detected = True
+            else:
+                hands_detected = False
 
 
 def control():
-    global left_hand_center, right_hand_center, center_face, hands_detected
+    global left_hand_center, right_hand_center, center_admin_face, hands_detected
+    global control_started, admin_in_the_house
+    global displacement_x_left, displacement_y_left, displacement_x_right, displacement_y_right 
 
     while True:
+        if not hands_detected or not admin_in_the_house:
+            displacement_x_left = 0
+            displacement_y_left = 0
+            displacement_x_right = 0
+            displacement_y_right = 0 
+            continue
+
+        
         # Calculate hand displacements relative to the face center
-        displacement_x_left = center_face[0] - left_hand_center[0]
-        displacement_y_left = center_face[1] - left_hand_center[1]
-        displacement_x_right = right_hand_center[0] - center_face[0]
-        displacement_y_right = center_face[1] - right_hand_center[1]
+        displacement_x_left = center_admin_face[0] - left_hand_center[0]
+        displacement_y_left = center_admin_face[1] - left_hand_center[1]
+        displacement_x_right = right_hand_center[0] - center_admin_face[0]
+        displacement_y_right = center_admin_face[1] - right_hand_center[1]
 
         # if hands_detected:
         #     # Control drone movement based on hand positions
@@ -185,6 +148,7 @@ def control():
         #     time.sleep(0.0001)
 
 
+
 def capture():
     global read, frame, fps
 
@@ -195,9 +159,13 @@ def capture():
     start_time = time.time()
 
     while True:
-        read, frame = camera.read()
-        if not read:
-            continue
+        with mutex:
+            read, input = camera.read()
+            if not read:
+                continue
+
+            frame = cv2.flip(input, 1)
+
 
         frame_counter += 1
         fps = frame_counter / (time.time() - start_time)
@@ -210,37 +178,78 @@ captureThread.start()
 camThread = threading.Thread(target=detect)
 camThread.start()
 
+# Create controlThread
+controlThread = threading.Thread(target=control)
+
 control_started = False
+admin_state = 'Sem admin'
 admins = ['deborah', 'douglas']
+admin_out = 0
 
 while True:
     if not read:
         continue
 
-    image = frame
-    if not admin_in_the_house:
-        for person in people:
-            for name, (y1, x1, y2, x2) in people:
-                # Desenhando retangulo da face
-                cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                cv2.putText(image, name, (x2, y2+20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
-        
-        cv2.putText(image, f"FPS: {fps:.2f}", (30, 30), cv.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 255), 2)
-        cv2.imshow("frame", image) 
-        cv2.waitKey(1)        
+    with mutex:
+        image = frame
 
 
-    # for name in names:
-    #     if name in admins: 
-    #         if not admin_in_the_house:
-    #             print('ACHEI' + name)
-    #             admin_in_the_house = True
-    #             break
-    #     else:
-    #         print('Corram o Admin sumiu!!!!')
-    #         admin_in_the_house = False
+    frame_height, frame_width, _ = image.shape
 
-    # if hands_detected and not control_started:
-    #     controlThread = threading.Thread(target=control)
-    #     controlThread.start()
-    #     control_started = True
+    for name, (y1, x1, y2, x2) in people:
+        if name in admins:
+            if not admin_in_the_house: 
+                admin_state = 'Admin: ' + name
+                admin_in_the_house = True
+
+                if not control_started:
+                    controlThread.start()
+                    control_started = True
+            
+            admin_out = 0
+            center_admin_face = (int((x1+x2)/2), int((y1+y2)/2))
+            # Draw key point on admin face
+            cv2.circle(image, (center_admin_face[0], center_admin_face[1]), 5, (255, 0, 0), -1)
+
+
+        elif admin_in_the_house:
+            admin_out = admin_out + 1
+            if admin_out >= 30:
+                admin_state = 'Sem admin'
+                admin_in_the_house = False
+
+        # Desenhando retangulo da face
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        cv2.putText(image, name, (x2, y2+20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+
+    if len(people) == 0 and admin_in_the_house:
+        admin_out = admin_out + 1
+        if admin_out >= 30:
+            admin_state = 'Sem admin'
+            admin_in_the_house = False
+       
+    if hands_detected:
+        for i, hand_landmarks in enumerate(hand_results.multi_hand_landmarks):
+            hand_points = []
+
+            for landmark in hand_landmarks.landmark:
+                x = int(landmark.x * frame_width)
+                y = int(landmark.y * frame_height)
+                hand_points.append((x, y))
+                # cv2.circle(image, (x, y), 5, (255, 0, 255), cv2.FILLED)
+
+            # Calculate left hand center
+            if hand_results.multi_handedness[i].classification[0].label == "Left":
+                left_hand_center = tuple(np.mean([hand_points[0], hand_points[1], hand_points[2], hand_points[5], hand_points[9], hand_points[13], hand_points[17]] , axis=0).astype(int))
+                cv2.circle(image, (left_hand_center[0], left_hand_center[1]), 5, (255, 0, 0), cv2.FILLED)
+
+            # Calculate right hand center
+            if hand_results.multi_handedness[i].classification[0].label == "Right":
+                right_hand_center = tuple(np.mean([hand_points[0], hand_points[1], hand_points[2], hand_points[5], hand_points[9], hand_points[13], hand_points[17]] , axis=0).astype(int))
+                cv2.circle(image, (right_hand_center[0], right_hand_center[1]), 5, (255, 0, 0), cv2.FILLED)
+
+    cv2.putText(image, f"FPS: {fps:.2f} - " + admin_state, (30, 30), cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 255), 2)
+    cv2.putText(image, "Left - x: " + str(displacement_x_left) + " / y: " + str(displacement_y_left), (10, frame_height-40), cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 255), 2)
+    cv2.putText(image, "Right - x: " + str(displacement_x_right) + " / y: " + str(displacement_y_right), (10, frame_height-10), cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 255), 2)
+    cv2.imshow("frame", image) 
+    cv2.waitKey(1)
