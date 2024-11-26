@@ -1,39 +1,47 @@
 import threading
 import socket
 import time
+from time import sleep
+
 import cv2
 import mediapipe as mp
 import face_recognition
-import pickle
+import pickle   
 import numpy as np
 
 # Load the known faces and embeddings
 print("[INFO] loading encodings...")
 data = pickle.loads(open("encodings/data.db", "rb").read())
 
-# host = ''
-# port = 9000
 
-# locaddr = (host, port)
+import rpyc
 
-# # Create a UDP socket
-# sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-# tello_address = ('192.168.10.1', 8889)
+# Create a RPyC connection to the remote ev3dev device.
+# Use the hostname or IP address of the ev3dev device.
+# If this fails, verify your IP connectivty via ``ping X.X.X.X``
+#conn = rpyc.classic.connect('198.168.1.125')
 
-
-# def recv():
-#     while True:
-#         try:
-#             data, server = sock.recvfrom(1518)
-#             print(data.decode(encoding="utf-8"))
-#         except Exception:
-#             print('\nExit . . .\n')
-#             break
+# conn = rpyc.classic.connect('192.168.0.125', port=18812)
+conn = rpyc.classic.connect('192.168.0.125')
 
 
-# Create and start recvThread
-# recvThread = threading.Thread(target=recv)
-# recvThread.start()
+
+# import ev3dev2 on the remote ev3dev device
+ev3dev2_motor = conn.modules['ev3dev2.motor']
+ev3dev2_sensor = conn.modules['ev3dev2.sensor']
+ev3dev2_sensor_lego = conn.modules['ev3dev2.sensor.lego']
+
+
+# Usar LargeMotor e TouchSensor no dispositivo remoto ev3dev
+# motor_left = ev3dev2_motor.LargeMotor(ev3dev2_motor.OUTPUT_A)
+# motor_right = ev3dev2_motor.LargeMotor(ev3dev2_motor.OUTPUT_B)
+
+# Use LargeMotor on the remote ev3dev device
+motor_esquerdo = ev3dev2_motor.LargeMotor(ev3dev2_motor.OUTPUT_A)
+motor_direito = ev3dev2_motor.LargeMotor(ev3dev2_motor.OUTPUT_B)
+# ts = ev3dev2_sensor_lego.TouchSensor(ev3dev2_sensor.INPUT_1)
+
+
 
 # Initialize Mediapipe models
 mp_face_detection = mp.solutions.face_detection
@@ -107,6 +115,32 @@ def detect():
             else:
                 hands_detected = False
 
+        time.sleep(0.5)
+        
+# Função para girar o robô no sentido horário
+def girar_horario():
+    motor_esquerdo.run_forever(speed_sp=200)
+    motor_direito.run_forever(speed_sp=-200)
+
+# Função para girar o robô no sentido anti-horário
+def girar_antihorario():
+    motor_esquerdo.run_forever(speed_sp=-200)
+    motor_direito.run_forever(speed_sp=200)
+
+# Função para mover o robô para trás
+def andar_para_tras():
+    motor_esquerdo.run_forever(speed_sp=-200)
+    motor_direito.run_forever(speed_sp=-200)
+
+def andar_para_frente():
+    motor_esquerdo.run_forever(speed_sp=200)
+    motor_direito.run_forever(speed_sp=200)
+
+# Função para parar os motores
+def parar_motores():
+    motor_esquerdo.stop(stop_action="brake")
+    motor_direito.stop(stop_action="brake")
+
 
 def control():
     global left_hand_center, right_hand_center, center_admin_face, hands_detected
@@ -121,31 +155,52 @@ def control():
             displacement_y_right = 0 
             continue
 
-        
+            # motor_left.run_forever(speed_sp=500)
+            # motor_right.run_forever(speed_sp=500)    
+
+            # motor_left.stop()
+            # motor_right.stop()
+    
         # Calculate hand displacements relative to the face center
         displacement_x_left = center_admin_face[0] - left_hand_center[0]
+        # print("deslocamento esquerdo",displacement_x_left)
         displacement_y_left = center_admin_face[1] - left_hand_center[1]
+        # print("deslocamento esquerda",displacement_x_left)
         displacement_x_right = right_hand_center[0] - center_admin_face[0]
+        # print("deslocamento direita",displacement_y_right)
         displacement_y_right = center_admin_face[1] - right_hand_center[1]
 
-        # if hands_detected:
-        #     # Control drone movement based on hand positions
-        #     if displacement_x_left < 60:
-        #         print('Movendo o drone 70 cm para a esquerda')
-        #         my_drone.move_right(70)
+        if hands_detected:
+            # Control drone movement based on hand positions
+            if displacement_x_left < 90:
+                print('Movendo para frente')
+                andar_para_frente()
+                
+            elif 90 <= displacement_x_left < 180:
+                parar_motores()
 
-        #     elif displacement_x_left > 150:
-        #         print('Movendo o drone 50 cm para a direita')
-        #         my_drone.move_left(50)
+            elif displacement_x_left > 180:
+                print('Movendo para a trás')
+                andar_para_tras()
+                
+            
 
-        #     if displacement_y_right < -180:
-        #         print('Move 5cm para a direita')
-        #         my_drone.move_forward(50)
+            if displacement_y_right < -180:
+                print('girar o robô no sentido horário')
+                girar_horario()
+                
 
-        #     elif displacement_y_right > 60:
-        #         print('Move 5cm para a esquerda')
-        #         my_drone.move_back(70)
-        #     time.sleep(0.0001)
+            elif -180 <= displacement_y_right <= 80:
+                parar_motores()
+
+
+            elif displacement_y_right > 80:
+                print('girar o robô no sentido anti-horário')
+                girar_antihorario()
+                
+                
+                
+        time.sleep(0.1)
 
 
 
@@ -169,6 +224,8 @@ def capture():
 
         frame_counter += 1
         fps = frame_counter / (time.time() - start_time)
+
+        sleep(0.01)
 
 # Create and start captureThread
 captureThread = threading.Thread(target=capture)
@@ -253,3 +310,5 @@ while True:
     cv2.putText(image, "Right - x: " + str(displacement_x_right) + " / y: " + str(displacement_y_right), (10, frame_height-10), cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 255), 2)
     cv2.imshow("frame", image) 
     cv2.waitKey(1)
+
+    # sleep(0.001)
