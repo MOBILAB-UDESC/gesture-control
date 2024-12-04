@@ -22,7 +22,7 @@ import rpyc
 #conn = rpyc.classic.connect('198.168.1.125')
 
 # conn = rpyc.classic.connect('192.168.0.125', port=18812)
-conn = rpyc.classic.connect('192.168.0.125')
+conn = rpyc.classic.connect('192.168.22.125')
 
 
 
@@ -118,28 +118,28 @@ def detect():
         time.sleep(0.5)
         
 # Função para girar o robô no sentido horário
-def girar_horario():
-    motor_esquerdo.run_forever(speed_sp=200)
-    motor_direito.run_forever(speed_sp=-200)
+# def girar_horario():
+#     motor_esquerdo.run_forever(speed_sp=200)
+#     motor_direito.run_forever(speed_sp=-200)
 
-# Função para girar o robô no sentido anti-horário
-def girar_antihorario():
-    motor_esquerdo.run_forever(speed_sp=-200)
-    motor_direito.run_forever(speed_sp=200)
+# # Função para girar o robô no sentido anti-horário
+# def girar_antihorario():
+#     motor_esquerdo.run_forever(speed_sp=-200)
+#     motor_direito.run_forever(speed_sp=200)
 
-# Função para mover o robô para trás
-def andar_para_tras():
-    motor_esquerdo.run_forever(speed_sp=-200)
-    motor_direito.run_forever(speed_sp=-200)
+# # Função para mover o robô para trás
+# def andar_para_tras():
+#     motor_esquerdo.run_forever(speed_sp=-200)
+#     motor_direito.run_forever(speed_sp=-200)
 
-def andar_para_frente():
-    motor_esquerdo.run_forever(speed_sp=200)
-    motor_direito.run_forever(speed_sp=200)
+# def andar_para_frente():
+#     motor_esquerdo.run_forever(speed_sp=200)
+#     motor_direito.run_forever(speed_sp=200)
 
-# Função para parar os motores
-def parar_motores():
-    motor_esquerdo.stop(stop_action="brake")
-    motor_direito.stop(stop_action="brake")
+# # Função para parar os motores
+# def parar_motores():
+#     motor_esquerdo.stop(stop_action="brake")
+#     motor_direito.stop(stop_action="brake")
 
 
 def control():
@@ -147,12 +147,18 @@ def control():
     global control_started, admin_in_the_house
     global displacement_x_left, displacement_y_left, displacement_x_right, displacement_y_right 
 
+    speed_l = 0
+    speed_r = 0
+
     while True:
         if not hands_detected or not admin_in_the_house:
             displacement_x_left = 0
             displacement_y_left = 0
             displacement_x_right = 0
             displacement_y_right = 0 
+
+            motor_esquerdo.stop(stop_action="brake")
+            motor_direito.stop(stop_action="brake")  
             continue
 
             # motor_left.run_forever(speed_sp=500)
@@ -172,34 +178,49 @@ def control():
 
         if hands_detected:
             # Control drone movement based on hand positions
-            if displacement_x_left < 90:
-                print('Movendo para frente')
-                andar_para_frente()
+            if displacement_x_left > 180:
+                # print('Movendo para frente')
+                # andar_para_frente()
+                speed_l = 300
+                speed_r = 300
                 
-            elif 90 <= displacement_x_left < 180:
-                parar_motores()
-
-            elif displacement_x_left > 180:
-                print('Movendo para a trás')
-                andar_para_tras()
-                
-            
-
-            if displacement_y_right < -180:
-                print('girar o robô no sentido horário')
-                girar_horario()
+            elif 70 <= displacement_x_left < 180:
+                # parar_motores()
+                speed_l = 0
+                speed_r = 0
                 
 
-            elif -180 <= displacement_y_right <= 80:
-                parar_motores()
+            elif displacement_x_left <= 70:
+                # print('Movendo para a trás')
+                # andar_para_tras()
+                speed_l = -300
+                speed_r = -300
+            # speed_l = 0
+            # speed_r = 0 
+            if displacement_y_right > 40:
+                # print('girar o robô no sentido horário')
+                # girar_horario()
+                speed_l += 200
+                speed_r += -200
+                
+            elif 40 >= displacement_y_right >= -120:
+                # parar_motores()
+                speed_l += 0
+                speed_r += 0
+
+            elif displacement_y_right < -120:
+                # print('girar o robô no sentido anti-horário')
+                # girar_antihorario()
+                speed_l += -200
+                speed_r += 200
 
 
-            elif displacement_y_right > 80:
-                print('girar o robô no sentido anti-horário')
-                girar_antihorario()
-                
-                
-                
+            print(displacement_x_left, "  ",displacement_y_right)
+            print(speed_l, "  ", speed_r)
+
+            motor_esquerdo.run_forever(speed_sp=speed_l)
+            motor_direito.run_forever(speed_sp=speed_r)
+        
         time.sleep(0.1)
 
 
@@ -207,7 +228,7 @@ def control():
 def capture():
     global read, frame, fps
 
-    camera = cv2.VideoCapture(0)
+    camera = cv2.VideoCapture(4)
     camera.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc('M','J','P','G'))
     
     frame_counter = 0
