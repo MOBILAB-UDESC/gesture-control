@@ -3,92 +3,94 @@ import face_recognition
 import argparse
 import pickle
 import cv2
+import time
+import numpy
+from deepface import DeepFace
+import os.path
 
-# # construct the argument parser and parse the arguments
-# ap = argparse.ArgumentParser()
-# ap.add_argument("-e", "--encodings", required=True,
-# 	help="path to serialized db of facial encodings")
-# ap.add_argument("-i", "--image", required=True,
-# 	help="path to input image")
-# ap.add_argument("-d", "--detection-method", type=str, default="cnn",
-# 	help="face detection model to use: either `hog` or `cnn`")
-# args = vars(ap.parse_args())
 
 # load the known faces and embeddings
 print("[INFO] loading encodings...")
-data = pickle.loads(open("encodings/data.db", "rb").read())
-
-# # Configuração da câmera RealSense
-# pipeline = rs.pipeline()  # Inicializa o pipeline RealSense para captura de quadros
-# config = rs.config()  # Cria um objeto de configuração para a câmera RealSense
-# config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)  # Habilita o fluxo de cores com determinadas configurações
-# profile = pipeline.start(config)  # Inicia o pipeline RealSense com as configurações especificadas
+# data = pickle.loads(open("encodings/data.db", "rb").read())
 
 # Tamanho da imagem para o reconhecimento
-height, width = 220, 220
-font = cv2.FONT_HERSHEY_COMPLEX_SMALL  # Define a fonte para o texto
+# height, width = 220, 220
+# font = cv2.FONT_HERSHEY_COMPLEX_SMALL  # Define text font
 camera = cv2.VideoCapture(0)
 camera.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc('M','J','P','G'))
-
+camera.set(cv2.CAP_PROP_FPS, 50)
+filepath = os.path.abspath("encodings/data.db")
 print("[INFO] recognizing faces...")
 
 try:
     while True:
-        # # Capturando os quadros da câmera RealSense
-        # frames = pipeline.wait_for_frames()  # Espera pela chegada de novos quadros
-        # color_frame = frames.get_color_frame()  # Obtém o quadro de cor atual
-        # if not color_frame:
-        #     continue  # Se não houver quadro de cor, passa para o próximo ciclo do loop
-
-        # imagem = np.asanyarray(color_frame.get_data())  # Converte o quadro de cor para uma matriz NumPy
+        start_time = time.time()
         conectado, image = camera.read()
-        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Converte a imagem colorida para escala de cinza
+        # rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        boxes = face_recognition.face_locations(rgb, model="hog")
-        encodings = face_recognition.face_encodings(rgb, boxes)
+        boxes = DeepFace.extract_faces(image, enforce_detection=False, detector_backend='ssd')
+
+        # dfs = DeepFace.find(rgb,  model_name="Facenet512", db_path = filepath)
+
+        # rgb = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+
+        # boxes = face_recognition.batch_face_locations(rgb)
+        # boxes = face_recognition.face_locations(rgb, model="hog")
+        # encodings = face_recognition.face_encodings(rgb, boxes)
         
-        # initialize the list of names for each face detected
+        # # initialize the list of names for each face detected
         names = []
 
-
-        # loop over the facial embeddings
-        for encoding in encodings:
-            # attempt to match each face in the input image to our known
-            # encodings
-            matches = face_recognition.compare_faces(data["encodings"], encoding)
+        # # loop over the facial embeddings
+        # for encoding in encodings:
+        #     # attempt to match each face in the input image to our known encodings
+        #     matches = face_recognition.compare_faces(data["encodings"], encoding)
             
-            name = "Unknown"
+        #     name = "Unknown"
 
-            # check to see if we have found a match
-            if True in matches:
-                # find the indexes of all matched faces then initialize a
-                # dictionary to count the total number of times each face
-                # was matched
-                matchedIdxs = [i for (i, b) in enumerate(matches) if b]
-                counts = {}
-                # loop over the matched indexes and maintain a count for
-                # each recognized face face
-                for i in matchedIdxs:
-                    name = data["names"][i]
-                    counts[name] = counts.get(name, 0) + 1
-                # determine the recognized face with the largest number of
-                # votes (note: in the event of an unlikely tie Python will
-                # select first entry in the dictionary)
-                name = max(counts, key=counts.get)
+        #     # check to see if we have found a match
+        #     if True in matches:
+        #         # find the indexes of all matched faces then initialize a
+        #         # dictionary to count the total number of times each face
+        #         # was matched
+        #         matchedIdxs = [i for (i, b) in enumerate(matches) if b]
+        #         counts = {}
+        #         # loop over the matched indexes and maintain a count for
+        #         # each recognized face face
+        #         for i in matchedIdxs:
+        #             name = data["names"][i]
+        #             counts[name] = counts.get(name, 0) + 1
+        #         # determine the recognized face with the largest number of
+        #         # votes (note: in the event of an unlikely tie Python will
+        #         # select first entry in the dictionary)
+        #         name = max(counts, key=counts.get)
             
-            # update the list of names
-            names.append(name)
+        #     # update the list of names
+        #     names.append(name)
         
         # loop over the recognized faces
-        for ((top, right, bottom, left), name) in zip(boxes, names):
+        # for ((top, right, bottom, left), name) in zip(boxes, names):
+        #     # draw the predicted face name on the image
+        #     cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
+        #     y = top - 15 if top - 15 > 15 else top + 15
+        #     cv2.putText(image, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
+        #         0.75, (0, 255, 0), 2)
+
+        for box in boxes:
             # draw the predicted face name on the image
-            cv2.rectangle(image, (left, top), (right, bottom), (0, 255, 0), 2)
-            y = top - 15 if top - 15 > 15 else top + 15
-            cv2.putText(image, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
-                0.75, (0, 255, 0), 2)
+            left = box['facial_area']['x']
+            top = box['facial_area']['y']
+            right = box['facial_area']['w']
+            bottom = box['facial_area']['h']
+            cv2.rectangle(image, (left, top), (left+right, top+bottom), (0, 255, 0), 2)
+            # y = top - 15 if top - 15 > 15 else top + 15
+            # cv2.putText(image, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+        
+        cv2.putText(image, f"FPS: {1 / (time.time() - start_time):.2f}", (30, 30), cv2.FONT_HERSHEY_DUPLEX, 0.7, (0, 255, 255), 2)
+
         # show the output image
         cv2.imshow("Image", image)
-        # cv2.waitKey(0)
         if cv2.waitKey(1) == ord('q'): break
 
 
