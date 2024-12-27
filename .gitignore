@@ -1,1 +1,3 @@
-fotos/*
+fotos/
+openvino_cache/
+libs/__pycache__/

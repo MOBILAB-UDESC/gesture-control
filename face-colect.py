@@ -1,7 +1,6 @@
 import cv2  # Importa a biblioteca OpenCV para processamento de imagens
 import os  # Importa a biblioteca os para manipulação de diretórios e arquivos do sistema
 import numpy as np  # Importa a biblioteca NumPy para manipulação de arrays
-# import pyrealsdouglasense2 as rs  # Importa a biblioteca RealSense para interagir com a câmera RealSense
 from threading import Timer
 
 # Caminho Haarcascade para detecção de rostos
