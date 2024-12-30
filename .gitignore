@@ -1,3 +1,4 @@
 fotos/
 openvino_cache/
 libs/__pycache__/
+my_db/
